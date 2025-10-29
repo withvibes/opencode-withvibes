@@ -110,6 +110,17 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
     console.error('[Withvibes] Plugin will continue but memory features may not work correctly.');
   }
 
+  // Add process exit handler to flush pending storage operations
+  // This prevents data loss on graceful exit in async mode
+  process.on('beforeExit', async () => {
+    const pending = storageQueue.size + storageQueue.pending;
+    if (pending > 0) {
+      console.log(`[Withvibes] Flushing ${pending} pending messages before exit...`);
+      await storageQueue.onIdle();
+      console.log('[Withvibes] All messages flushed successfully');
+    }
+  });
+
   return {
     // Hook: After each chat message
     'chat.message': async (_input, output) => {
@@ -167,18 +178,28 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
       });
 
       // Conditionally await storage based on configuration
+      const queueSize = storageQueue.size;
+      const queuePending = storageQueue.pending;
+
       if (!asyncStorage) {
         // Blocking mode: wait for storage to complete (guaranteed persistence)
         await storagePromise;
-        log('Storage completed (blocking mode)');
+        log(
+          `Storage completed (blocking mode) - Queue: ${queuePending} pending, ${queueSize} waiting`,
+        );
       } else {
         // Async mode: fire and forget (faster, but may lose data on crash)
-        log('Storage queued (async mode)');
-      }
+        // Prevent unhandled promise rejection
+        storagePromise.catch((_error) => {
+          // Error already logged inside queue callback
+          log('Storage error caught in async mode');
+        });
+        log(`Storage queued (async mode) - Queue: ${queuePending} pending, ${queueSize} waiting`);
 
-      // Log queue status in debug mode
-      if (storageQueue.size > 0 || storageQueue.pending > 0) {
-        log(`Queue status: ${storageQueue.pending} pending, ${storageQueue.size} waiting`);
+        // Warn if queue backlog is growing
+        if (queueSize > 10) {
+          console.warn(`[Withvibes] Storage queue backlog: ${queueSize} messages waiting`);
+        }
       }
     },
 

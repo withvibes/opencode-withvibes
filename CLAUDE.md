@@ -2,6 +2,27 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Review Before Committing
+
+**ALWAYS run code review before committing changes.**
+
+Before any `git commit`:
+1. Use the `codex-reviewer` agent to review all changes
+2. Address any P0/P1 issues found
+3. Document any P2/P3 issues that are accepted
+4. Only then commit and push
+
+Example workflow:
+```bash
+# Make changes...
+# THEN:
+# → Run: codex-reviewer agent
+# → Fix any issues
+# → Commit
+```
+
+**Never skip the review step.** This catches bugs, security issues, and correctness problems before they hit the repo.
+
 ## Project Overview
 
 This is an OpenCode plugin that provides persistent memory and context management via Zep Cloud knowledge graphs. The plugin enables automatic conversation storage with AI-powered fact extraction, semantic search, and temporal tracking.
