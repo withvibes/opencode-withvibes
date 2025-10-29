@@ -21,6 +21,9 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
   const apiKey = process.env.ZEP_API_KEY;
   const userId = process.env.ZEP_USER_ID || 'default-user';
   const debug = process.env.ZEP_DEBUG === 'true';
+  // Async storage (fire-and-forget) is faster but may lose data on crash
+  // Set to 'false' for guaranteed storage (blocks until complete)
+  const asyncStorage = process.env.ZEP_ASYNC_STORAGE !== 'false';
 
   // Generate deterministic thread ID based on directory and user to prevent memory fragmentation
   // This ensures the same project always uses the same thread for a given user
@@ -46,6 +49,9 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
   };
 
   log('Plugin loading...');
+  log(
+    `Storage mode: ${asyncStorage ? 'async (non-blocking)' : 'blocking (guaranteed persistence)'}`,
+  );
 
   if (!apiKey) {
     console.warn('[Withvibes] No ZEP_API_KEY found. Memory disabled.');
@@ -108,7 +114,7 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
     // Hook: After each chat message
     'chat.message': async (_input, output) => {
       // Queue message storage to prevent race conditions
-      await storageQueue.add(async () => {
+      const storagePromise = storageQueue.add(async () => {
         try {
           const { message } = output;
 
@@ -159,6 +165,16 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
           // Queue will handle retries based on configuration
         }
       });
+
+      // Conditionally await storage based on configuration
+      if (!asyncStorage) {
+        // Blocking mode: wait for storage to complete (guaranteed persistence)
+        await storagePromise;
+        log('Storage completed (blocking mode)');
+      } else {
+        // Async mode: fire and forget (faster, but may lose data on crash)
+        log('Storage queued (async mode)');
+      }
 
       // Log queue status in debug mode
       if (storageQueue.size > 0 || storageQueue.pending > 0) {
