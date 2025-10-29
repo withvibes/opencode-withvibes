@@ -100,7 +100,7 @@ opencode run "Should I commit to main?"
                    │ chat.message hook
                    ▼
 ┌─────────────────────────────────────────────────────┐
-│  opencode-withvibes Plugin                          │
+│  opencode-withvibes Plugin                           │
 │  ┌────────────────────────────────────────────┐    │
 │  │  Message Queue (p-queue)                   │    │
 │  │  → Serializes storage to prevent races     │    │
