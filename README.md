@@ -145,12 +145,27 @@ opencode run "Should I commit to main?"
 
 ### Does This Block My Conversation?
 
-**Yes, intentionally.** The plugin uses \`await\` to ensure messages are fully stored before continuing.
+**By default, no! (as of v0.0.2)** The plugin uses async storage mode for better performance.
 
-**Why blocking is good here:**
-- ✅ **Data integrity** - Messages are guaranteed to be stored in order
-- ✅ **No data loss** - Even if OpenCode crashes, previous messages are safe
-- ✅ **Consistent state** - Recall operations always see complete history
+**Two modes available:**
+
+#### Async Mode (Default) - Non-Blocking ⚡
+- **Faster:** Returns control immediately after queueing storage
+- **Trade-off:** If OpenCode crashes mid-storage, that message may be lost
+- **Best for:** Normal development work
+- **Set with:** \`export ZEP_ASYNC_STORAGE="true"\` (or omit, it's the default)
+
+#### Blocking Mode - Guaranteed Persistence 🔒
+- **Reliable:** Waits until storage completes before continuing
+- **Trade-off:** ~100-300ms delay after each message
+- **Best for:** Critical conversations you can't afford to lose
+- **Set with:** \`export ZEP_ASYNC_STORAGE="false"\`
+
+**Why we have both modes:**
+- ✅ **Async (default)** - Fast, responsive, good enough for 99% of use cases
+- ✅ **Blocking (opt-in)** - Guaranteed persistence for critical work
+
+**Note:** The \`recall\` tool always blocks (it must wait for search results), but storage is async by default.
 
 ### Performance Characteristics
 
@@ -159,8 +174,8 @@ opencode run "Should I commit to main?"
 | Short message (<2500 chars) | ~100-300ms | No (async mode) / Yes (blocking mode) |
 | Long message (10,000 chars) | ~500-800ms | No (async mode) / Yes (blocking mode) |
 | Very long message (50,000 chars) | ~2-3 seconds | No (async mode) / Yes (blocking mode) |
-| Tool: \`remember\` | ~100-300ms | No (async) |
-| Tool: \`recall\` | ~200-500ms | No (async) |
+| Tool: \`remember\` | ~100-300ms | Yes (always blocks) |
+| Tool: \`recall\` | ~200-500ms | Yes (always blocks) |
 
 ### When Storage Happens
 
@@ -411,7 +426,7 @@ gitleaks detect --source . --verbose
 | \`ZEP_USER_ID\` | No | \`"default-user"\` | Unique user identifier |
 | \`ZEP_THREAD_ID\` | No | Auto-generated | Override thread ID |
 | \`ZEP_DEBUG\` | No | \`false\` | Enable verbose logging |
-| `ZEP_ASYNC_STORAGE` | No | `true` | Async storage mode (non-blocking). Set to `false` for blocking mode (guaranteed persistence) |
+| \`ZEP_ASYNC_STORAGE\` | No | \`true\` | Async storage mode (non-blocking). Set to \`false\` for blocking mode (guaranteed persistence) |
 
 ### Thread ID Generation
 
