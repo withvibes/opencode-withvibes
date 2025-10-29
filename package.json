@@ -1,0 +1,46 @@
+{
+  "name": "opencode-withvibes",
+  "version": "0.0.1",
+  "description": "OpenCode plugin for With Vibes providing persistent memory and context management via Zep Cloud",
+  "main": "src/index.ts",
+  "type": "module",
+  "keywords": [
+    "opencode",
+    "plugin",
+    "zep",
+    "memory",
+    "ai",
+    "context",
+    "withvibes"
+  ],
+  "author": "spikel1283",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/withvibes/opencode-withvibes.git"
+  },
+  "dependencies": {
+    "@getzep/zep-cloud": "^3.8.0",
+    "opencode-skills": "^0.1.0"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "bun-types": "^1.3.1",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"No tests yet\""
+  },
+  "files": [
+    "src",
+    "skills",
+    "dist",
+    "AGENTS.md",
+    "README.md",
+    "LICENSE"
+  ]
+}
