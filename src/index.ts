@@ -2,7 +2,11 @@ import { ZepClient } from '@getzep/zep-cloud';
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import crypto from 'crypto';
+import matter from 'gray-matter';
 import PQueue from 'p-queue';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
+import { z } from 'zod';
 
 /**
  * Withvibes OpenCode Plugin
@@ -15,8 +19,40 @@ import PQueue from 'p-queue';
  * - Semantic memory search
  * - User-level memory isolation
  * - Custom remember/recall tools
+ * - Bundled zep-memory skill (follows Anthropic Skills Specification)
  */
-export const WithvibesPlugin: Plugin = async ({ directory }) => {
+
+// Skill frontmatter validation schema (Anthropic Skills Specification v1.0)
+const SkillFrontmatterSchema = z.object({
+  name: z.string(),
+  description: z.string().min(20),
+  license: z.string().optional(),
+  'allowed-tools': z.array(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
+});
+
+type SkillFrontmatter = z.infer<typeof SkillFrontmatterSchema>;
+
+/**
+ * Load and parse a bundled skill
+ */
+async function loadBundledSkill(
+  skillPath: string,
+): Promise<{ frontmatter: SkillFrontmatter; content: string } | null> {
+  try {
+    const file = Bun.file(skillPath);
+    const text = await file.text();
+    const { data, content } = matter(text);
+
+    const frontmatter = SkillFrontmatterSchema.parse(data);
+    return { frontmatter, content: content.trim() };
+  } catch (error) {
+    console.error(`[Withvibes] Failed to load skill from ${skillPath}:`, error);
+    return null;
+  }
+}
+
+export const WithvibesPlugin: Plugin = async ({ directory, client }) => {
   // Read from environment variables
   const apiKey = process.env.ZEP_API_KEY;
   const userId = process.env.ZEP_USER_ID || 'default-user';
@@ -121,6 +157,142 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
     }
   });
 
+  // Load bundled skill
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const skillPath = join(__dirname, '../skills/zep-memory/SKILL.md');
+
+  log('Loading bundled skill from:', skillPath);
+  const skill = await loadBundledSkill(skillPath);
+
+  if (skill) {
+    log(`Loaded skill: ${skill.frontmatter.name}`);
+  } else {
+    console.warn('[Withvibes] Failed to load bundled zep-memory skill');
+  }
+
+  // Build tools object
+  const tools: Record<string, any> = {
+    remember: tool({
+      description: 'Store an important fact in memory',
+      args: {
+        fact: tool.schema.string().describe('The fact to remember'),
+      },
+      async execute(args) {
+        // Input validation
+        if (!args.fact || typeof args.fact !== 'string') {
+          return 'Error: Fact is required and must be a string';
+        }
+
+        const trimmedFact = args.fact.trim();
+        if (trimmedFact.length === 0) {
+          return 'Error: Fact cannot be empty';
+        }
+
+        if (trimmedFact.length > 2500) {
+          return `Error: Fact is too long (${trimmedFact.length} characters, max 2500)`;
+        }
+
+        try {
+          await zep.thread.addMessages(threadId, {
+            messages: [
+              {
+                role: 'user',
+                content: `[MEMORY] ${trimmedFact}`,
+              },
+            ],
+          });
+
+          return `Remembered: ${trimmedFact}`;
+        } catch (error: any) {
+          const errorType = error.status ? `API Error ${error.status}` : 'Unknown Error';
+          return `Failed to store memory: ${errorType} - ${error.message}. Check ZEP_API_KEY and network connection.`;
+        }
+      },
+    }),
+
+    recall: tool({
+      description: 'Search memories for relevant facts',
+      args: {
+        query: tool.schema.string().describe('What to search for'),
+      },
+      async execute(args) {
+        // Input validation
+        if (!args.query || typeof args.query !== 'string') {
+          return 'Error: Query is required and must be a string';
+        }
+
+        const trimmedQuery = args.query.trim();
+        if (trimmedQuery.length === 0) {
+          return 'Error: Query cannot be empty';
+        }
+
+        if (trimmedQuery.length > 500) {
+          return `Error: Query is too long (${trimmedQuery.length} characters, max 500)`;
+        }
+
+        try {
+          // v3 API uses graph.search instead of memory.search
+          const results = await zep.graph.search({
+            userId: userId,
+            query: trimmedQuery,
+            limit: 5,
+            scope: 'edges',
+          });
+
+          const edges = results?.edges ?? [];
+          if (edges.length > 0) {
+            const facts = edges.map((edge) => `- ${edge?.fact ?? 'Unknown'}`).join('\n');
+            return `Found ${edges.length} relevant memories:\n${facts}`;
+          } else {
+            return 'No relevant memories for this query.';
+          }
+        } catch (error: any) {
+          const errorType = error.status ? `API Error ${error.status}` : 'Unknown Error';
+          return `Failed to search memory: ${errorType} - ${error.message}. Check ZEP_API_KEY and network connection.`;
+        }
+      },
+    }),
+  };
+
+  // Register bundled skill as a tool (follows opencode-skills pattern)
+  if (skill) {
+    tools.skills_zep_memory = tool({
+      description: skill.frontmatter.description,
+      args: {},
+      async execute(_args, toolCtx) {
+        try {
+          // Helper to send silent messages (noReply pattern - appears as user message, persists in context)
+          const sendSilentPrompt = (text: string) =>
+            client.session.prompt({
+              path: { id: toolCtx.sessionID },
+              body: {
+                noReply: true,
+                parts: [{ type: 'text', text }],
+              },
+            });
+
+          // Message 1: Skill loading header
+          await sendSilentPrompt(
+            `The "${skill.frontmatter.name}" skill is loading\n${skill.frontmatter.name}`,
+          );
+
+          // Message 2: Skill content with base directory context
+          const skillBaseDir = join(__dirname, '../skills/zep-memory');
+          await sendSilentPrompt(
+            `Base directory for this skill: ${skillBaseDir}\n\n${skill.content}`,
+          );
+
+          // Return confirmation
+          return `Launching skill: ${skill.frontmatter.name}`;
+        } catch (error: any) {
+          console.error('[Withvibes] Failed to deliver skill content:', error);
+          return `Error loading skill: ${error.message || 'Unknown error'}`;
+        }
+      },
+    });
+  }
+
   return {
     // Hook: After each chat message
     'chat.message': async (_input, output) => {
@@ -203,89 +375,8 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
       }
     },
 
-    // Custom tool for explicit memory storage
-    tool: {
-      remember: tool({
-        description: 'Store an important fact in memory',
-        args: {
-          fact: tool.schema.string().describe('The fact to remember'),
-        },
-        async execute(args) {
-          // Input validation
-          if (!args.fact || typeof args.fact !== 'string') {
-            return 'Error: Fact is required and must be a string';
-          }
-
-          const trimmedFact = args.fact.trim();
-          if (trimmedFact.length === 0) {
-            return 'Error: Fact cannot be empty';
-          }
-
-          if (trimmedFact.length > 2500) {
-            return `Error: Fact is too long (${trimmedFact.length} characters, max 2500)`;
-          }
-
-          try {
-            await zep.thread.addMessages(threadId, {
-              messages: [
-                {
-                  role: 'user',
-                  content: `[MEMORY] ${trimmedFact}`,
-                },
-              ],
-            });
-
-            return `Remembered: ${trimmedFact}`;
-          } catch (error: any) {
-            const errorType = error.status ? `API Error ${error.status}` : 'Unknown Error';
-            return `Failed to store memory: ${errorType} - ${error.message}. Check ZEP_API_KEY and network connection.`;
-          }
-        },
-      }),
-
-      recall: tool({
-        description: 'Search memories for relevant facts',
-        args: {
-          query: tool.schema.string().describe('What to search for'),
-        },
-        async execute(args) {
-          // Input validation
-          if (!args.query || typeof args.query !== 'string') {
-            return 'Error: Query is required and must be a string';
-          }
-
-          const trimmedQuery = args.query.trim();
-          if (trimmedQuery.length === 0) {
-            return 'Error: Query cannot be empty';
-          }
-
-          if (trimmedQuery.length > 500) {
-            return `Error: Query is too long (${trimmedQuery.length} characters, max 500)`;
-          }
-
-          try {
-            // v3 API uses graph.search instead of memory.search
-            const results = await zep.graph.search({
-              userId: userId,
-              query: trimmedQuery,
-              limit: 5,
-              scope: 'edges',
-            });
-
-            const edges = results?.edges ?? [];
-            if (edges.length > 0) {
-              const facts = edges.map((edge) => `- ${edge?.fact ?? 'Unknown'}`).join('\n');
-              return `Found ${edges.length} relevant memories:\n${facts}`;
-            } else {
-              return 'No relevant memories for this query.';
-            }
-          } catch (error: any) {
-            const errorType = error.status ? `API Error ${error.status}` : 'Unknown Error';
-            return `Failed to search memory: ${errorType} - ${error.message}. Check ZEP_API_KEY and network connection.`;
-          }
-        },
-      }),
-    },
+    // Tools
+    tool: tools,
   };
 };
 
