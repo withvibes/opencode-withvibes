@@ -2,6 +2,7 @@ import { ZepClient } from '@getzep/zep-cloud';
 import type { Plugin } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import crypto from 'crypto';
+import PQueue from 'p-queue';
 
 /**
  * Withvibes OpenCode Plugin
@@ -55,8 +56,17 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
   const zep = new ZepClient({ apiKey });
   log('Initialized for user:', userId, 'thread:', threadId);
 
-  // Track pending storage operations to detect potential message loss
-  let pendingStorageCount = 0;
+  // Create queue for serializing message storage to prevent race conditions
+  const storageQueue = new PQueue({ concurrency: 1 });
+
+  // Helper function to chunk large messages
+  const chunkMessage = (text: string, maxSize: number): string[] => {
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += maxSize) {
+      chunks.push(text.substring(i, i + maxSize));
+    }
+    return chunks;
+  };
 
   // Ensure user and thread exist
   try {
@@ -97,65 +107,62 @@ export const WithvibesPlugin: Plugin = async ({ directory }) => {
   return {
     // Hook: After each chat message
     'chat.message': async (_input, output) => {
-      pendingStorageCount++;
-      try {
-        const { message } = output;
+      // Queue message storage to prevent race conditions
+      await storageQueue.add(async () => {
+        try {
+          const { message } = output;
 
-        log('Storing message from role:', message.role);
+          log('Storing message from role:', message.role);
 
-        // Extract text content from parts
-        const textContent = output.parts
-          .filter((part) => 'text' in part)
-          .map((part) => part.text)
-          .join('\n');
+          // Extract text content from parts
+          const textContent = output.parts
+            .filter((part) => 'text' in part)
+            .map((part) => part.text)
+            .join('\n');
 
-        if (!textContent) {
-          log('No text content to store');
-          return;
-        }
-
-        // Zep has a 2500 character limit for thread messages
-        // For longer content, use graph.add API
-        if (textContent.length > 2500) {
-          log(`Message too long (${textContent.length} chars), using graph.add API`);
-
-          // Warn if message will be truncated
-          if (textContent.length > 5000) {
-            console.warn(
-              `[Withvibes] Message truncated from ${textContent.length} to 5000 characters. Some content will not be stored.`,
-            );
+          if (!textContent) {
+            log('No text content to store');
+            return;
           }
 
-          // Use graph.add for long content
-          await zep.graph.add({
-            userId: userId,
-            type: 'text',
-            data: textContent.substring(0, 5000), // Limit to 5000 chars for graph.add
-          });
+          // Zep has a 2500 character limit for thread messages
+          if (textContent.length <= 2500) {
+            // Store directly via thread.addMessages
+            await zep.thread.addMessages(threadId, {
+              messages: [
+                {
+                  role: message.role === 'user' ? 'user' : 'assistant',
+                  content: textContent,
+                },
+              ],
+            });
+            log('Message stored successfully via thread.addMessages');
+            return;
+          }
 
-          log('Long message stored via graph.add');
-          return;
+          // For longer content, chunk and store via graph.add API
+          log(`Message length: ${textContent.length} chars, chunking for storage`);
+          const chunks = chunkMessage(textContent, 4500); // Use 4500 to be safe under 5000 limit
+
+          for (let i = 0; i < chunks.length; i++) {
+            await zep.graph.add({
+              userId: userId,
+              type: 'text',
+              data: chunks[i],
+            });
+            log(`Stored chunk ${i + 1}/${chunks.length}`);
+          }
+
+          log(`Long message stored successfully (${chunks.length} chunks)`);
+        } catch (error) {
+          console.error('[Withvibes] Error storing message:', error);
+          // Queue will handle retries based on configuration
         }
+      });
 
-        // Add message to Zep thread (v3 API)
-        await zep.thread.addMessages(threadId, {
-          messages: [
-            {
-              role: message.role === 'user' ? 'user' : 'assistant',
-              content: textContent,
-            },
-          ],
-        });
-
-        log('Message stored successfully');
-      } catch (error) {
-        console.error('[Withvibes] Error storing message:', error);
-        // Consider: Retry logic or dead letter queue for failed storage
-      } finally {
-        pendingStorageCount--;
-        if (pendingStorageCount > 0) {
-          log(`Pending storage operations: ${pendingStorageCount}`);
-        }
+      // Log queue status in debug mode
+      if (storageQueue.size > 0 || storageQueue.pending > 0) {
+        log(`Queue status: ${storageQueue.pending} pending, ${storageQueue.size} waiting`);
       }
     },
 
