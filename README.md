@@ -453,6 +453,64 @@ export ZEP_THREAD_ID="permanent-thread-id"
 # All projects will share this thread
 \`\`\`
 
+### Permissions
+
+The bundled **zep-memory skill** declares `allowed-tools: [bash]` following the [Anthropic Skills Specification v1.0](https://github.com/anthropics/skills).
+
+#### Claude Code
+
+Tool restrictions are **automatically enforced** when the skill is active. The agent can only use `bash` while the zep-memory skill is loaded.
+
+#### OpenCode
+
+Tool restrictions are **configured globally** in `opencode.json`. The skill's `allowed-tools` field documents the intended tools but does not enforce restrictions automatically.
+
+**Recommended OpenCode configuration:**
+
+\`\`\`json
+{
+  "plugin": ["opencode-withvibes"],
+  "permission": {
+    "bash": "allow",      // Let skill use bash freely
+    "edit": "ask",        // Ask before file modifications
+    "webfetch": "allow"   // Allow fetching documentation
+  }
+}
+\`\`\`
+
+**Permission modes:**
+- `"allow"` - Execute without asking (default)
+- `"ask"` - Prompt user before execution
+- `"deny"` - Tool completely disabled
+
+**Advanced bash restrictions:**
+\`\`\`json
+{
+  "permission": {
+    "bash": "ask",           // Default: ask for all bash
+    "bash:npm *": "allow",   // Allow npm commands
+    "bash:rm *": "deny",     // Block destructive commands
+    "bash:git *": "allow"    // Allow git commands
+  }
+}
+\`\`\`
+
+**Agent-specific permissions:**
+\`\`\`json
+{
+  "agents": {
+    "memory-researcher": {
+      "permission": {
+        "bash": "allow",
+        "edit": "deny"     // This agent can't modify files
+      }
+    }
+  }
+}
+\`\`\`
+
+For more details, see [OpenCode Permissions](https://opencode.ai/docs/permissions/).
+
 ## 📚 Advanced Usage
 
 ### Debugging with Debug Mode
