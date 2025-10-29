@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run gitleaks to check for secrets
+echo "🔍 Scanning for secrets with gitleaks..."
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --verbose
+else
+  echo "⚠️  gitleaks not installed. Install with: brew install gitleaks"
+  exit 1
+fi
+
+# Run lint-staged for linting and formatting
+echo "🎨 Running linters..."
+bun run lint-staged
