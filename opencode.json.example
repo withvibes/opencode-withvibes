@@ -15,10 +15,48 @@
       ]
     },
 
-    "document-specialist": {
+    "fullstack": {
       "model": "anthropic/claude-sonnet-4-5",
-      "description": "Specialized agent for document work (DOCX, XLSX, PPTX, PDF)",
-      "systemPrompt": "{file:./prompts/document-specialist.txt}",
+      "description": "Full-stack TanStack development with testing and memory",
+      "systemPrompt": "{file:./prompts/fullstack.md}",
+      "tool": [
+        "skills_zep_memory",
+        "skills_webapp_testing",
+        "skills_mcp_builder",
+        "remember",
+        "recall"
+      ],
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "write": "allow",
+        "edit": "allow"
+      }
+    },
+
+    "designer": {
+      "model": "anthropic/claude-sonnet-4-5",
+      "description": "UI/UX specialist with visual design and theming",
+      "systemPrompt": "{file:./prompts/designer.md}",
+      "tool": [
+        "skills_canvas_design",
+        "skills_theme_factory",
+        "skills_artifacts_builder",
+        "skills_zep_memory",
+        "remember",
+        "recall"
+      ],
+      "permission": {
+        "bash": "allow",
+        "read": "allow",
+        "write": "allow"
+      }
+    },
+
+    "docs": {
+      "model": "anthropic/claude-sonnet-4-5",
+      "description": "Documentation and spreadsheet specialist",
+      "systemPrompt": "{file:./prompts/docs.md}",
       "tool": [
         "skills_document_skills_xlsx",
         "skills_document_skills_docx",
@@ -36,37 +74,12 @@
       }
     },
 
-    "creative-designer": {
+    "tester": {
       "model": "anthropic/claude-sonnet-4-5",
-      "description": "Agent for creative visual and algorithmic art",
-      "systemPrompt": "{file:./prompts/creative-designer.txt}",
+      "description": "Testing, linting, type checking, and code quality",
+      "systemPrompt": "{file:./prompts/tester.md}",
       "tool": [
-        "skills_canvas_design",
-        "skills_algorithmic_art",
-        "skills_slack_gif_creator",
-        "skills_theme_factory",
-        "skills_artifacts_builder",
-        "skills_zep_memory",
-        "remember",
-        "recall"
-      ],
-      "permission": {
-        "bash": "allow",
-        "read": "allow",
-        "write": "allow"
-      }
-    },
-
-    "code-builder": {
-      "model": "anthropic/claude-sonnet-4-5",
-      "description": "Developer agent for building MCP servers, testing webapps, and creating complex artifacts",
-      "systemPrompt": "{file:./prompts/code-builder.txt}",
-      "tool": [
-        "skills_mcp_builder",
         "skills_webapp_testing",
-        "skills_artifacts_builder",
-        "skills_skill_creator",
-        "skills_template_skill",
         "skills_zep_memory",
         "remember",
         "recall"
@@ -74,44 +87,23 @@
       "permission": {
         "bash": "allow",
         "read": "allow",
-        "write": "allow",
-        "edit": "allow",
-        "webfetch": "allow"
-      }
-    },
-
-    "communicator": {
-      "model": "anthropic/claude-haiku-4-5",
-      "description": "Agent for internal communications and branded content",
-      "systemPrompt": "{file:./prompts/communicator.txt}",
-      "tool": [
-        "skills_internal_comms",
-        "skills_brand_guidelines",
-        "skills_theme_factory",
-        "skills_zep_memory",
-        "remember",
-        "recall"
-      ],
-      "permission": {
-        "bash": "deny",
-        "read": "allow",
         "write": "allow"
       }
     },
 
-    "memory-only": {
-      "model": "anthropic/claude-haiku-4-5",
-      "description": "Minimal agent with only memory capabilities",
-      "systemPrompt": "{file:./prompts/memory-only.txt}",
+    "memory-expert": {
+      "model": "anthropic/claude-sonnet-4-5",
+      "description": "Advanced memory operations and context retrieval",
+      "systemPrompt": "{file:./prompts/memory-expert.md}",
       "tool": [
         "skills_zep_memory",
         "remember",
         "recall"
       ],
       "permission": {
-        "bash": "deny",
+        "bash": "allow",
         "read": "allow",
-        "write": "deny"
+        "write": "allow"
       }
     }
   },
