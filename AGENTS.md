@@ -80,7 +80,6 @@ This plugin provides 16 skills across different domains. You can create speciali
    - `code-builder` - MCP servers, web testing, React artifacts
    - `communicator` - Internal communications and branding
    - `memory-only` - Minimal agent focusing on memory operations
-   - `full-access` - All 16 skills enabled
 
 3. Use an agent:
    ```bash
@@ -124,7 +123,6 @@ Agent prompts are stored in the `prompts/` directory using OpenCode's `{file:}` 
 - `prompts/code-builder.txt`
 - `prompts/communicator.txt`
 - `prompts/memory-only.txt`
-- `prompts/full-access.txt`
 
 This keeps prompts modular and easy to customize.
 

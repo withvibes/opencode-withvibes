@@ -113,39 +113,6 @@
         "read": "allow",
         "write": "deny"
       }
-    },
-
-    "full-access": {
-      "model": "anthropic/claude-sonnet-4-5",
-      "description": "Agent with access to ALL bundled skills",
-      "systemPrompt": "{file:./prompts/full-access.txt}",
-      "tool": [
-        "skills_zep_memory",
-        "skills_skill_creator",
-        "skills_template_skill",
-        "skills_mcp_builder",
-        "skills_webapp_testing",
-        "skills_document_skills_xlsx",
-        "skills_document_skills_docx",
-        "skills_document_skills_pptx",
-        "skills_document_skills_pdf",
-        "skills_canvas_design",
-        "skills_algorithmic_art",
-        "skills_slack_gif_creator",
-        "skills_theme_factory",
-        "skills_artifacts_builder",
-        "skills_internal_comms",
-        "skills_brand_guidelines",
-        "remember",
-        "recall"
-      ],
-      "permission": {
-        "bash": "allow",
-        "read": "allow",
-        "write": "allow",
-        "edit": "allow",
-        "webfetch": "allow"
-      }
     }
   },
 
