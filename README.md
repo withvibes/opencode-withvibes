@@ -68,7 +68,56 @@ export ZEP_ASYNC_STORAGE="true"                # Default: true (non-blocking, fa
 
 **💡 Tip:** Add these to your \`~/.zshrc\` or \`~/.bashrc\` for permanent setup.
 
-### 4. Use OpenCode Normally
+### 4. Automated Setup (Recommended)
+
+The easiest way to get started is with the automated setup CLI:
+
+\`\`\`bash
+# Step 1: Install the plugin in your project
+bun add opencode-withvibes
+# or
+npm install opencode-withvibes
+
+# Step 2: Run automated setup (must have env vars set first!)
+npx opencode-withvibes setup
+\`\`\`
+
+This will automatically:
+- ✅ Validate your Zep Cloud connection
+- ✅ Configure 5 pre-configured agents (fullstack, designer, docs, tester, memory-expert)
+- ✅ Create a \`prompts/\` directory with agent prompt files
+- ✅ Generate \`opencode.json\` with proper configuration
+
+**Setup Options:**
+
+\`\`\`bash
+# Basic setup
+npx opencode-withvibes setup
+
+# Force overwrite existing agent configs
+npx opencode-withvibes setup --overwrite
+
+# Show help
+npx opencode-withvibes --help
+
+# Show version
+npx opencode-withvibes --version
+\`\`\`
+
+**Pre-configured Agents:**
+
+The setup creates 5 agents:
+
+**Primary Agents** (switch with Tab):
+- **fullstack** - TanStack development with testing and memory
+- **designer** - UI/UX with visual design and theming
+- **docs** - Documentation and spreadsheet specialist
+
+**Subagents** (@mention to invoke):
+- **tester** - Testing, linting, type checking, code quality
+- **memory-expert** - Advanced memory operations and context retrieval
+
+### 5. Use OpenCode Normally
 
 That's it! The plugin works automatically in the background:
 
