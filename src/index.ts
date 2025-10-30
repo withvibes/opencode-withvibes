@@ -157,18 +157,44 @@ export const WithvibesPlugin: Plugin = async ({ directory, client }) => {
     }
   });
 
-  // Load bundled skill
+  // Discover and load all bundled skills
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
-  const skillPath = join(__dirname, '../skills/zep-memory/SKILL.md');
+  const skillsBaseDir = join(__dirname, '../skills');
 
-  log('Loading bundled skill from:', skillPath);
-  const skill = await loadBundledSkill(skillPath);
+  log('Discovering bundled skills from:', skillsBaseDir);
 
-  if (skill) {
-    log(`Loaded skill: ${skill.frontmatter.name}`);
-  } else {
-    console.warn('[Withvibes] Failed to load bundled zep-memory skill');
+  // Discover all SKILL.md files in the skills directory
+  const { Glob } = await import('bun');
+  const glob = new Glob('**/SKILL.md');
+  const skillPaths: string[] = [];
+
+  for await (const match of glob.scan({
+    cwd: skillsBaseDir,
+    absolute: true,
+  })) {
+    skillPaths.push(match);
+  }
+
+  log(`Found ${skillPaths.length} skill(s)`);
+
+  // Load all discovered skills
+  const skills: Array<{
+    frontmatter: SkillFrontmatter;
+    content: string;
+    path: string;
+    basePath: string;
+  }> = [];
+
+  for (const skillPath of skillPaths) {
+    const skill = await loadBundledSkill(skillPath);
+    if (skill) {
+      const basePath = dirname(skillPath);
+      skills.push({ ...skill, path: skillPath, basePath });
+      log(`Loaded skill: ${skill.frontmatter.name} from ${basePath}`);
+    } else {
+      console.warn(`[Withvibes] Failed to load skill from ${skillPath}`);
+    }
   }
 
   // Build tools object
@@ -255,9 +281,12 @@ export const WithvibesPlugin: Plugin = async ({ directory, client }) => {
     }),
   };
 
-  // Register bundled skill as a tool (follows opencode-skills pattern)
-  if (skill) {
-    tools.skills_zep_memory = tool({
+  // Register all bundled skills as tools (follows opencode-skills pattern)
+  for (const skill of skills) {
+    // Convert skill name to tool name (e.g., "zep-memory" -> "skills_zep_memory")
+    const toolName = `skills_${skill.frontmatter.name.replace(/-/g, '_')}`;
+
+    tools[toolName] = tool({
       description: skill.frontmatter.description,
       args: {},
       async execute(_args, toolCtx) {
@@ -278,9 +307,8 @@ export const WithvibesPlugin: Plugin = async ({ directory, client }) => {
           );
 
           // Message 2: Skill content with base directory context
-          const skillBaseDir = join(__dirname, '../skills/zep-memory');
           await sendSilentPrompt(
-            `Base directory for this skill: ${skillBaseDir}\n\n${skill.content}`,
+            `Base directory for this skill: ${skill.basePath}\n\n${skill.content}`,
           );
 
           // Return confirmation
@@ -291,6 +319,8 @@ export const WithvibesPlugin: Plugin = async ({ directory, client }) => {
         }
       },
     });
+
+    log(`Registered tool: ${toolName}`);
   }
 
   return {
